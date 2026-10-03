@@ -131,6 +131,13 @@ async function refresh($: EngineInterface) {
   }
 }
 
+// A failed refresh reads as an empty fleet; commands say why instead.
+async function refreshError($: EngineInterface) {
+  const { error } = await read($, snapshot)
+
+  return error ? `Couldn't reach Tabfleet: ${error} Run /mcp to sign in to this plugin's Tabfleet server.` : undefined
+}
+
 async function liveView($: EngineInterface, sessionId: string) {
   try {
     const view = parse(await call($, 'get_live_view', { sessionId, mode: 'view', ttlSeconds: 900 }))
@@ -178,6 +185,8 @@ export const register: Register = on => {
 
   on('command.run', { command: 'fleet-watch' }, async ($, e) => {
     const active = (await refresh($)).filter(isActive)
+    const failed = await refreshError($)
+    if (failed) return { text: failed }
     const newest = active[0]
     if (!newest) return { text: 'No active browsers to watch.' }
 
@@ -196,6 +205,8 @@ export const register: Register = on => {
 
   on('command.run', { command: 'fleet-close-all' }, async $ => {
     const active = (await refresh($)).filter(isActive)
+    const failed = await refreshError($)
+    if (failed) return { text: failed }
     for (const s of active) await close($, s.id)
 
     return { text: active.length ? `Closed ${active.length} browser(s).` : 'No active browsers.' }
@@ -264,7 +275,7 @@ export const register: Register = on => {
           <Button key="refresh" label="Refresh" hotkey="r" onPress={() => refresh($)} />
         </Box>
         <Text bold>Active</Text>
-        {active.length === 0 && <Text dimColor>No active browsers.</Text>}
+        {!s.error && active.length === 0 && <Text dimColor>No active browsers.</Text>}
         {active.map(x => {
           const url = s.liveViews[x.id]
 

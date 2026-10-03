@@ -75,3 +75,11 @@ test('Watch asks for a PNG screenshot and draws it inline', async ($, on) => {
   expect(await ui.find({ type: 'Image' })).toBeDefined()
   await ui.unmount()
 })
+
+test('/fleet-watch says why when Tabfleet is unreachable', async ($, on) => {
+  mock.clock(on, { now: Date.now() })
+  on('mcp.connect', () => ({ value: { isConnected: false as const, reason: 'auth' as const, message: 'The server needs authentication.' } }))
+  on('ui.status', () => ({ value: undefined }))
+  const ran = await $.command.run({ command: 'fleet-watch', args: '' })
+  expect(ran.text).toMatch(/Couldn't reach Tabfleet: The server needs authentication\./)
+})
