@@ -6,9 +6,8 @@ const text = (v: unknown) => ({ value: { content: [{ type: 'text' as const, text
 test('pane lists active browsers and Close calls close_browser', async ($, on) => {
   mock.clock(on, { now: Date.now() })
   const closed: string[] = []
-  on('mcp.connect', () => ({ value: { isConnected: true as const, server: 'plugin:tabfleet-fleet:tabfleet' } }))
   on('mcp.call', ($, e) => {
-    expect(e.server).toBe('plugin:tabfleet-fleet:tabfleet')
+    expect(e.server).toBe('plugin:tabfleet-browser:tabfleet')
     if (e.tool === 'list_sessions')
       return text({
         sessions: closed.length
@@ -48,7 +47,6 @@ test('Watch asks for a PNG screenshot and draws it inline', async ($, on) => {
   const asked: unknown[] = []
   on('ui.open', () => ({ value: { isPlaced: true as const } }))
   on('ui.status', () => ({ value: undefined }))
-  on('mcp.connect', () => ({ value: { isConnected: true as const, server: 'plugin:tabfleet-fleet:tabfleet' } }))
   on('mcp.call', ($, e) => {
     if (e.tool === 'list_sessions')
       return text({
@@ -78,15 +76,16 @@ test('Watch asks for a PNG screenshot and draws it inline', async ($, on) => {
 
 test('/fleet-watch says why when Tabfleet is unreachable', async ($, on) => {
   mock.clock(on, { now: Date.now() })
-  on('mcp.connect', () => ({ value: { isConnected: false as const, reason: 'auth' as const, message: 'The server needs authentication.' } }))
+  on('mcp.call', () => {
+    throw new Error('no connected MCP tool')
+  })
   on('ui.status', () => ({ value: undefined }))
   const ran = await $.command.run({ command: 'fleet-watch', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
-  expect(ran.text).toMatch(/Couldn't reach Tabfleet: The server needs authentication\./)
+  expect(ran.text).toMatch(/Couldn't reach Tabfleet: No Tabfleet server is connected/)
 })
 
 test('Watch draws a screenshot Claude Code saved to a file', async ($, on) => {
   mock.clock(on, { now: Date.now() })
-  on('mcp.connect', () => ({ value: { isConnected: true as const, server: 'plugin:tabfleet-fleet:tabfleet' } }))
   on('ui.open', () => ({ value: { isPlaced: true as const } }))
   on('ui.status', () => ({ value: undefined }))
   on('mcp.call', ($, e) => {

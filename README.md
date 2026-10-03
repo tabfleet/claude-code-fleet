@@ -10,7 +10,7 @@ A Claude Code pane, status line and commands for the [Tabfleet](https://tabfleet
 
 ### What the fleet pane runs and sends
 
-The pane calls Tabfleet tools itself, without the model asking, only through this plugin's Tabfleet server (`https://tabfleet.com/`):
+The pane calls Tabfleet tools itself, without the model asking, only through the Tabfleet server that [Tabfleet Browser](https://github.com/tabfleet/claude-plugin) provides (`plugin:tabfleet-browser:tabfleet`), or a server you configured yourself named `tabfleet`:
 
 | Tool | When |
 | --- | --- |
@@ -25,11 +25,16 @@ Its hooks see Claude Code's tool calls only to notice Tabfleet ones. Every call 
 
 ## Install
 
+The pane uses Tabfleet Browser's connection, so install that first:
+
+1. Install **Tabfleet Browser** from the plugin directory (`/plugin`, then search for "tabfleet") and sign in with `/mcp`.
+2. Add this marketplace and install the pane:
+
 ```
 /plugin marketplace add tabfleet/claude-plugin
 /plugin install tabfleet-fleet@tabfleet
 ```
 
-Then run `/mcp`, choose the plugin's Tabfleet server, and sign in. It works on its own, or alongside the [Tabfleet Browser](https://github.com/tabfleet/claude-plugin) plugin, which adds a skill that guides Claude through using the browser.
+There's no second sign-in; the pane has no server of its own.
 
 This plugin runs only in Claude Code. See the [Tabfleet documentation](https://tabfleet.com/docs), [terms](https://tabfleet.com/terms), and [privacy notice](https://tabfleet.com/privacy). For support or security reports, email [support@tabfleet.com](mailto:support@tabfleet.com).

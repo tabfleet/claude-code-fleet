@@ -27,15 +27,30 @@ const watch = atom({ plugin: 'tabfleet-fleet', key: 'watch' } as const, {
 let isCapturing = false
 let server: string | undefined
 
-// This plugin's own tabfleet server, under whatever name the session runs it.
+// Tabfleet servers this pane can use, as /mcp names them: Tabfleet Browser's, then one the person configured.
+const SERVERS = ['plugin:tabfleet-browser:tabfleet', 'tabfleet']
+const NO_SERVER = 'No Tabfleet server is connected. Install Tabfleet Browser from the plugin directory, then sign in with /mcp.'
+
 async function call($: EngineInterface, tool: string, args?: Record<string, unknown>) {
-  if (!server) {
-    const conn = await $.mcp.connect('tabfleet')
-    if (!conn.isConnected) throw new Error(conn.message)
-    server = conn.server
+  if (server) {
+    try {
+      return await $.mcp.call(server, tool, args)
+    } catch {
+      server = undefined
+    }
+  }
+  for (const name of SERVERS) {
+    try {
+      const result = await $.mcp.call(name, tool, args)
+      server = name
+
+      return result
+    } catch {
+      // Not installed, not signed in, or disconnected: try the next one.
+    }
   }
 
-  return $.mcp.call(server, tool, args)
+  throw new Error(NO_SERVER)
 }
 
 // PNG frames reach the pane inline; the Image element takes at most 2 MiB decoded.
@@ -145,7 +160,7 @@ async function refresh($: EngineInterface) {
 async function refreshError($: EngineInterface) {
   const { error } = await read($, snapshot)
 
-  return error ? `Couldn't reach Tabfleet: ${error} Run /mcp to sign in to this plugin's Tabfleet server.` : undefined
+  return error ? `Couldn't reach Tabfleet: ${error}` : undefined
 }
 
 async function liveView($: EngineInterface, sessionId: string) {
