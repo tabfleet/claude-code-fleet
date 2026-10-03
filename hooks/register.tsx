@@ -61,17 +61,27 @@ async function capture($: EngineInterface) {
   isCapturing = true
   try {
     const shot = await call($, 'browser_screenshot', { sessionId: w.sessionId, format: 'png' })
-    const image = shot.content.find(b => b.type === 'image')
-    if (shot.isError || typeof image?.data !== 'string') throw new Error('No screenshot came back.')
-    if (image.mimeType !== 'image/png') throw new Error('This Tabfleet server sends JPEG only; watching needs PNG screenshots.')
-    if (image.data.length > MAX_PNG_BASE64) throw new Error('Screenshot too large to draw.')
-
-    const png = image.data
-    const { width, height } = pngSize(png)
+    if (shot.isError) throw new Error('The screenshot call failed.')
     const generation = (w.frame?.generation ?? 0) + 1
-    await update($, watch, cur =>
-      cur.sessionId === w.sessionId ? { ...cur, frame: { png, generation, width, height }, error: null } : cur,
-    )
+    const image = shot.content.find(b => b.type === 'image')
+    // Claude Code may keep the image as a file and pass back "[Image: source: /path.png]" instead of its bytes.
+    const saved = shot.content
+      .map(b => (typeof b.text === 'string' ? /\[Image: source: (\/[^\]]+)\]/.exec(b.text)?.[1] : undefined))
+      .find(Boolean)
+
+    let frame: NonNullable<FleetWatch['frame']>
+    if (typeof image?.data === 'string') {
+      if (image.mimeType !== 'image/png') throw new Error('This Tabfleet server sends JPEG only; watching needs PNG screenshots.')
+      if (image.data.length > MAX_PNG_BASE64) throw new Error('Screenshot too large to draw.')
+      frame = { png: image.data, generation, ...pngSize(image.data) }
+    } else if (saved?.endsWith('.png')) {
+      frame = { file: saved, generation, width: 960, height: 600 }
+    } else {
+      const shape = shot.content.map(b => `${b.type}{${Object.keys(b).join(',')}}`).join(' ') || 'empty'
+      throw new Error(saved ? 'This Tabfleet server sends JPEG only; watching needs PNG screenshots.' : `No screenshot came back (${shape}).`)
+    }
+
+    await update($, watch, cur => (cur.sessionId === w.sessionId ? { ...cur, frame, error: null } : cur))
   } catch (err) {
     await update($, watch, cur => ({ ...cur, error: String((err as Error).message ?? err) }))
   } finally {
@@ -131,6 +141,13 @@ async function refresh($: EngineInterface) {
   }
 }
 
+// A failed refresh reads as an empty fleet; commands say why instead.
+async function refreshError($: EngineInterface) {
+  const { error } = await read($, snapshot)
+
+  return error ? `Couldn't reach Tabfleet: ${error} Run /mcp to sign in to this plugin's Tabfleet server.` : undefined
+}
+
 async function liveView($: EngineInterface, sessionId: string) {
   try {
     const view = parse(await call($, 'get_live_view', { sessionId, mode: 'view', ttlSeconds: 900 }))
@@ -178,6 +195,8 @@ export const register: Register = on => {
 
   on('command.run', { command: 'fleet-watch' }, async ($, e) => {
     const active = (await refresh($)).filter(isActive)
+    const failed = await refreshError($)
+    if (failed) return { text: failed }
     const newest = active[0]
     if (!newest) return { text: 'No active browsers to watch.' }
 
@@ -196,6 +215,8 @@ export const register: Register = on => {
 
   on('command.run', { command: 'fleet-close-all' }, async $ => {
     const active = (await refresh($)).filter(isActive)
+    const failed = await refreshError($)
+    if (failed) return { text: failed }
     for (const s of active) await close($, s.id)
 
     return { text: active.length ? `Closed ${active.length} browser(s).` : 'No active browsers.' }
@@ -264,7 +285,7 @@ export const register: Register = on => {
           <Button key="refresh" label="Refresh" hotkey="r" onPress={() => refresh($)} />
         </Box>
         <Text bold>Active</Text>
-        {active.length === 0 && <Text dimColor>No active browsers.</Text>}
+        {!s.error && active.length === 0 && <Text dimColor>No active browsers.</Text>}
         {active.map(x => {
           const url = s.liveViews[x.id]
 
@@ -297,7 +318,7 @@ export const register: Register = on => {
             {w.frame && Image && (
               <Image
                 key="live"
-                source={{ png: w.frame.png }}
+                source={'png' in w.frame ? { png: w.frame.png } : { file: w.frame.file, format: 'png', generation: w.frame.generation }}
                 columns={imageCols}
                 rows={imageRows}
                 alt={`Browser ${w.sessionId.slice(0, 8)} screenshot`}

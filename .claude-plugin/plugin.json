@@ -1,7 +1,7 @@
 {
   "name": "tabfleet-fleet",
   "displayName": "Tabfleet Fleet Pane",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Claude Code pane, status line and commands for watching and closing your Tabfleet cloud browsers.",
   "author": {
     "name": "Dalton Solutions, LLC.",
