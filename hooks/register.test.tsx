@@ -83,3 +83,33 @@ test('/fleet-watch says why when Tabfleet is unreachable', async ($, on) => {
   const ran = await $.command.run({ command: 'fleet-watch', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
   expect(ran.text).toMatch(/Couldn't reach Tabfleet: The server needs authentication\./)
 })
+
+test('Watch draws a screenshot Claude Code saved to a file', async ($, on) => {
+  mock.clock(on, { now: Date.now() })
+  on('mcp.connect', () => ({ value: { isConnected: true as const, server: 'plugin:tabfleet-fleet:tabfleet' } }))
+  on('ui.open', () => ({ value: { isPlaced: true as const } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('mcp.call', ($, e) => {
+    if (e.tool === 'list_sessions')
+      return text({
+        sessions: [{ id: ACTIVE, status: 'active', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600_000).toISOString() }],
+      })
+    if (e.tool === 'get_usage') return text({ activeSessions: 1, budget: { availableSeconds: 6000 } })
+    if (e.tool === 'browser_screenshot')
+      return { value: { content: [{ type: 'text' as const, text: '[Image: source: /tmp/shot-1.png]' }], isError: false } }
+    return text({})
+  })
+
+  const ui = await $.ui.mount({
+    plugin: 'tabfleet-fleet',
+    surface: 'terminal',
+    component: 'Pane',
+    requestId: 'tabfleet-fleet',
+    props: { title: 'Tabfleet', isFocused: true, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
+  })
+  await ui.press({ key: 'refresh' })
+  await ui.press({ key: `watch-${ACTIVE}` })
+  expect(await ui.find({ type: 'Image' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /No screenshot/ })).toBeUndefined()
+  await ui.unmount()
+})
