@@ -80,6 +80,6 @@ test('/fleet-watch says why when Tabfleet is unreachable', async ($, on) => {
   mock.clock(on, { now: Date.now() })
   on('mcp.connect', () => ({ value: { isConnected: false as const, reason: 'auth' as const, message: 'The server needs authentication.' } }))
   on('ui.status', () => ({ value: undefined }))
-  const ran = await $.command.run({ command: 'fleet-watch', args: '' })
+  const ran = await $.command.run({ command: 'fleet-watch', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
   expect(ran.text).toMatch(/Couldn't reach Tabfleet: The server needs authentication\./)
 })
